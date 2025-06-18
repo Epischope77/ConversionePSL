@@ -1,0 +1,8 @@
+{
+    "column_mappings": {
+        "UniEMens_appoggio_dipendente.codice_azienda": "codice_azienda",
+        "UniEMens_appoggio_dipendente.matricola_ditta": "matricola_del_dipendente"
+    },
+    "date_format_columns": [],
+    "studio_code_column": "riferimento_del_cliente"
+}

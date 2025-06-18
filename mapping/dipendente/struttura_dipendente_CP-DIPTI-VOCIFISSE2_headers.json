@@ -1,0 +1,19 @@
+{
+    "riferimento_del_cliente": 1,
+    "codice_azienda": 2,
+    "matricola_del_dipendente": 6,
+    "id_voce_1_5_tab_voci_fisse": 187,
+    "id_voce_2_5_tab_voci_fisse": 188,
+    "id_voce_3_5_tab_voci_fisse": 189,
+    "id_voce_4_5_tab_voci_fisse": 190,
+    "id_voce_5_5_tab_voci_fisse": 191,
+    "id_voce_6_5_tab_voci_fisse": 192,
+    "id_voce_7_5_tab_voci_fisse": 193,
+    "importo_voce_1_5_tab_voci_fisse": 197,
+    "importo_voce_2_5_tab_voci_fisse": 198,
+    "importo_voce_3_5_tab_voci_fisse": 199,
+    "importo_voce_4_5_tab_voci_fisse": 200,
+    "importo_voce_5_5_tab_voci_fisse": 201,
+    "importo_voce_6_5_tab_voci_fisse": 202,
+    "importo_voce_7_5_tab_voci_fisse": 203
+}

@@ -1,0 +1,12 @@
+{
+    "tsk_scheda_identificativa_record": "TSK - Scheda identificativa record",
+    "riferimento_del_cliente": "Riferimento del cliente",
+    "codice_azienda": "Codice azienda",
+    "codice_progressivo_8_tab_trattenuta_sindacale": "Codice progressivo (8 tab trattenuta sindacale)",
+    "descrizione_sindacato_8_tab_trattenuta_sindacale": "Descrizione sindacato (8 tab trattenuta sindacale)",
+    "iban_sindacato": "IBAN (sindacato)",
+    "tipo_banca_per_bonifici": "Tipo Banca per bonifici",
+    "bic_sindacato": "BIC (Sindacato)",
+    "federaz_sindacato": "Federaz. (sindacato)",
+    "rap_sin_sindacato": "Rap.sin. (sindacato)"
+}

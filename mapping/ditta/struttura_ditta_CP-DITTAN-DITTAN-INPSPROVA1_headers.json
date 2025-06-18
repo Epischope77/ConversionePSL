@@ -1,0 +1,12 @@
+{
+    "tsk_scheda_identificativa_record": 1,
+    "riferimento_del_cliente": 2,
+    "codice_azienda": 3,
+    "codice_inps": 55,
+    "posizione_inps": 57,
+    "sezione_inps": 58,
+    "cod_aliquota_inps": 66,
+    "csc_inps": 59,
+    "cod_autorizzazione_inps": 60,
+    "descrizione_attivita_inps": 62
+}

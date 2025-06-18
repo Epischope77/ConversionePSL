@@ -1,0 +1,13 @@
+{
+    "riferimento_del_cliente": 1,
+    "codice_azienda": 2,
+    "matricola_del_dipendente": 6,
+    "codice_fondo_pensione_complementare_10_tab": 217,
+    "percentuale_destinazione_tfr_10_tab_fpc": 1945,
+    "scelta_lavoratore_10_tab_fpc": 1953,
+    "fondo_aperto_10_tab_fpc": 1955,
+    "tipo_scelta_fpc_per_emens": 1985,
+    "data_scelta_fpc_per_emens": 1986,
+    "iscrizione_a_previdenza_obbligatoria_per_emens": 1987,
+    "iscrizione_a_previdenza_complementare_per_emens": 1988
+}

@@ -1,0 +1,13 @@
+{
+    "riferimento_del_cliente": "Riferimento del cliente",
+    "codice_azienda": "Codice azienda",
+    "matricola_del_dipendente": "Matricola del dipendente",
+    "codice_fondo_pensione_complementare_10_tab": "Codice fondo pensione complementare (10 tab)",
+    "percentuale_destinazione_tfr_10_tab_fpc": "Percentuale destinazione TFR (10 tab fpc)",
+    "scelta_lavoratore_10_tab_fpc": "Scelta lavoratore (10 tab fpc)",
+    "fondo_aperto_10_tab_fpc": "Fondo aperto (10 tab fpc)",
+    "tipo_scelta_fpc_per_emens": "Tipo scelta FPC per EMENS",
+    "data_scelta_fpc_per_emens": "Data scelta FPC per EMENS",
+    "iscrizione_a_previdenza_obbligatoria_per_emens": "Iscrizione a previdenza obbligatoria per EMENS",
+    "iscrizione_a_previdenza_complementare_per_emens": "Iscrizione a previdenza complementare per EMENS"
+}

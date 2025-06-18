@@ -1,0 +1,17 @@
+{
+    "riferimento_del_cliente": 1,
+    "codice_azienda": 2,
+    "matricola_del_dipendente": 6,
+    "detrazioni_lavoro_dipendente_gen_4_tab": 59,
+    "detrazioni_lavoro_dipendente_feb_4_tab": 60,
+    "detrazioni_lavoro_dipendente_mar_4_tab": 61,
+    "detrazioni_lavoro_dipendente_apr_4_tab": 62,
+    "detrazioni_lavoro_dipendente_mag_4_tab": 63,
+    "detrazioni_lavoro_dipendente_giu_4_tab": 64,
+    "detrazioni_lavoro_dipendente_lug_4_tab": 65,
+    "detrazioni_lavoro_dipendente_ago_4_tab": 66,
+    "detrazioni_lavoro_dipendente_set_4_tab": 67,
+    "detrazioni_lavoro_dipendente_ott_4_tab": 68,
+    "detrazioni_lavoro_dipendente_nov_4_tab": 69,
+    "detrazioni_lavoro_dipendente_dic_4_tab": 70
+}

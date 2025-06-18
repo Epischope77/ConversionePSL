@@ -1,0 +1,11 @@
+{
+    "riferimento_del_cliente": 1,
+    "codice_azienda": 2,
+    "posizione_inail": 3,
+    "qualifica_del_dipendente": 4,
+    "subqualifica_del_dipendente": 5,
+    "matricola_del_dipendente": 6,
+    "cognome_dipendente_1_tab": 7,
+    "nome_dipendente_1_tab": 8,
+    "campo_speciale_7_tab_centri_di_costo": 887
+}

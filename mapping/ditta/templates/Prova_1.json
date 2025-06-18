@@ -1,0 +1,22 @@
+{
+    "Ditte_appoggio_ditta.Codice Numerico Azienda --- Dati Anagrafici Azienda ---": "Codice azienda",
+    "Ditte_appoggio_ditta.Ragione sociale --- Dati Anagrafici Azienda ---": "Ragione sociale della ditta (1 tab)",
+    "Ditte_appoggio_ditta.Indirizzo --- Dati Anagrafici Azienda ---": "Indirizzo svolgimento attivit\u00e0 (1 tab)",
+    "Ditte_appoggio_ditta.CAP --- Dati Anagrafici Azienda ---": "C.a.p. svolgimento attivit\u00e0 (1 tab)",
+    "Ditte_appoggio_ditta.Comune --- Dati Anagrafici Azienda ---": "Cod Comune (1 tab)",
+    "Ditte_appoggio_ditta.Codice Fiscale --- Dati Anagrafici Azienda ---": "Codice fiscale (1 tab)",
+    "Ditte_appoggio_ditta.Partita Iva --- Dati Anagrafici Azienda ---": "Partita iva (1 tab)",
+    "Ditte_appoggio_ditta.Natura giuridica --- Dati Anagrafici Azienda ---": "Natura giuridica (4 tab)",
+    "Ditte_appoggio_ditta.Attivita' (Codice) --- Dati Anagrafici Azienda ---": "Codice attivit\u00e0 nuovo (3 tab)",
+    "Ditte_appoggio_ditta.Indirizzo E-MAIL --- Dati Anagrafici Azienda ---": "Indirizzo e-mail (4 tab)",
+    "Ditte_appoggio_ditta.Sede INPS --- Informazioni Contrattuali e Contributive ---": "Sezione (Inps)",
+    "Ditte_appoggio_ditta.Posizione assicurativa INPS --- Informazioni Contrattuali e Contributive ---": "Posizione (Inps)",
+    "Ditte_appoggio_ditta.Codice contratto INPS --- Informazioni Contrattuali e Contributive ---": "Posizione (Inps)",
+    "Ditte_appoggio_ditta.Codice ditta INAIL --- Informazioni Contrattuali e Contributive ---": "Codice ditta Inail 1 (5 tab Inail)",
+    "Ditte_appoggio_ditta.Cognome e Nome --- LEGALE RAPPRESENTANTE, REFERENTE FONDI, RESP. SIC. ---": "Rapp. legale = > Cognome (5 tab Rappresentante)",
+    "Ditte_appoggio_ditta.Codice Fiscale --- LEGALE RAPPRESENTANTE, REFERENTE FONDI, RESP. SIC. ---": "Rapp. legale = > Codice fiscale (5 tab Rappresentante)",
+    "Ditte_appoggio_ditta.Data Nascita --- LEGALE RAPPRESENTANTE, REFERENTE FONDI, RESP. SIC. ---": "Rapp. legale = > Nato il (5 tab Rappresentante)",
+    "Ditte_appoggio_ditta.Comune Nascita --- LEGALE RAPPRESENTANTE, REFERENTE FONDI, RESP. SIC. ---": "Rapp. legale = > Comune di nascita (5 tab Rappresentante)",
+    "Ditte_appoggio_ditta.Prov. Nascita --- LEGALE RAPPRESENTANTE, REFERENTE FONDI, RESP. SIC. ---": "Rapp. legale = > Provincia di nascita (5 tab Rappresentante",
+    "Ditte_appoggio_ditta.Codice settore --- Informazioni Contrattuali e Contributive ---": "Codice attivit\u00e0 nuovo (3 tab)"
+}

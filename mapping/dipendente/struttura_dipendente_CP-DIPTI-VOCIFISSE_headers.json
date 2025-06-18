@@ -1,0 +1,14 @@
+{
+    "riferimento_del_cliente": 1,
+    "codice_azienda": 2,
+    "matricola_del_dipendente": 6,
+    "cognome_dipendente_1_tab": 7,
+    "nome_dipendente_1_tab": 8,
+    "codice_voce_1_5_tab_voci_fisse": 167,
+    "codice_voce_2_5_tab_voci_fisse": 168,
+    "codice_voce_3_5_tab_voci_fisse": 169,
+    "codice_voce_4_5_tab_voci_fisse": 170,
+    "codice_voce_5_5_tab_voci_fisse": 171,
+    "codice_voce_6_5_tab_voci_fisse": 172,
+    "codice_voce_7_5_tab_voci_fisse": 173
+}

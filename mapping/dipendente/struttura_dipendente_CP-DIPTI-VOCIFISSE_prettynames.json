@@ -1,0 +1,14 @@
+{
+    "riferimento_del_cliente": "Riferimento del cliente",
+    "codice_azienda": "Codice azienda",
+    "matricola_del_dipendente": "Matricola del dipendente",
+    "cognome_dipendente_1_tab": "Cognome dipendente (1 tab)",
+    "nome_dipendente_1_tab": "Nome dipendente (1 tab)",
+    "codice_voce_1_5_tab_voci_fisse": "Codice voce (1) (5 tab Voci fisse)",
+    "codice_voce_2_5_tab_voci_fisse": "Codice voce (2) (5 tab Voci fisse)",
+    "codice_voce_3_5_tab_voci_fisse": "Codice voce (3) (5 tab Voci fisse)",
+    "codice_voce_4_5_tab_voci_fisse": "Codice voce (4) (5 tab Voci fisse)",
+    "codice_voce_5_5_tab_voci_fisse": "Codice voce (5) (5 tab Voci fisse)",
+    "codice_voce_6_5_tab_voci_fisse": "Codice voce (6) (5 tab Voci fisse)",
+    "codice_voce_7_5_tab_voci_fisse": "Codice voce (7) (5 tab Voci fisse)"
+}

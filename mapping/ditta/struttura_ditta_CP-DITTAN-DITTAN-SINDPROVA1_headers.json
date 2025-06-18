@@ -1,0 +1,12 @@
+{
+    "tsk_scheda_identificativa_record": 1,
+    "riferimento_del_cliente": 2,
+    "codice_azienda": 3,
+    "codice_progressivo_8_tab_trattenuta_sindacale": 6,
+    "descrizione_sindacato_8_tab_trattenuta_sindacale": 7,
+    "iban_sindacato": 9,
+    "tipo_banca_per_bonifici": 10,
+    "bic_sindacato": 1177,
+    "federaz_sindacato": 5937,
+    "rap_sin_sindacato": 5938
+}

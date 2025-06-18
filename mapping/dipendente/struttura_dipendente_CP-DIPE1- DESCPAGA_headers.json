@@ -1,0 +1,21 @@
+{
+    "riferimento_del_cliente": 1,
+    "codice_azienda": 2,
+    "matricola_del_dipendente": 3,
+    "cognome_dipendente": 5,
+    "nome_dipendente": 6,
+    "descrizione_elementi_paga_10_5_tab_des_elem_paga": 3017,
+    "altera_descrizione_elementi_paga_10_5_tab_des_elem_paga": 3029,
+    "descrizione_elementi_paga_14_5_tab_des_elem_paga": 5735,
+    "descrizione_elementi_paga_15_5_tab_des_elem_paga": 5736,
+    "descrizione_elementi_paga_16_5_tab_des_elem_paga": 5737,
+    "descrizione_elementi_paga_17_5_tab_des_elem_paga": 5738,
+    "descrizione_elementi_paga_18_5_tab_des_elem_paga": 5739,
+    "descrizione_elementi_paga_20_5_tab_des_elem_paga": 5741,
+    "altera_descrizione_elementi_paga_14_5_tab_des_elem_paga": 5743,
+    "altera_descrizione_elementi_paga_15_5_tab_des_elem_paga": 5744,
+    "altera_descrizione_elementi_paga_16_5_tab_des_elem_paga": 5745,
+    "altera_descrizione_elementi_paga_17_5_tab_des_elem_paga": 5746,
+    "altera_descrizione_elementi_paga_18_5_tab_des_elem_paga": 5747,
+    "altera_descrizione_elementi_paga_20_5_tab_des_elem_paga": 5749
+}
