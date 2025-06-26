@@ -9,7 +9,7 @@ import streamlit as st
 from sqlalchemy import create_engine, text, inspect
 
 # --- BLOCCO DI INIZIALIZZAZIONE DELLO STATO ---
-# questo blocco rende la pagina autosufficiente
+# Questo blocco rende la pagina autosufficiente
 if 'wizard_step' not in st.session_state:
     st.session_state['wizard_step'] = 0
 if 'tipo_struttura' not in st.session_state:
@@ -83,17 +83,17 @@ def load_template_callback(config):
     template_name = st.session_state.get(f"template_loader_{mode}")
     
     # Chiave per il nostro stato di mappatura centrale
-    live_mapping_state_key = f"live_mapping_state_{mode}"
-
+    # Aggiornata per la nuova struttura: live_mapping_state_key non è più usata direttamente così
+    # Ora lo stato è per-tabella, quindi resetteremo solo il loaded_template_data
+    
     # Reset dei nomi dei template
     st.session_state.loaded_template_name = None
     if 'loaded_template_data' in st.session_state:
         del st.session_state['loaded_template_data']
 
     # Pulisce lo stato dei widget e lo stato centrale
-    keys_to_delete = [k for k in st.session_state.keys() if k.startswith(f"map_global_") or k == live_mapping_state_key]
-    for k in keys_to_delete:
-        del st.session_state[k]
+    # Non è più necessario pulire map_global_* qui, perché lo stato è per-tabella
+    # e sarà gestito dal selettore della tabella di struttura.
 
     if not template_name or template_name == "-- Non caricare nulla --":
         return
@@ -114,7 +114,7 @@ def load_template_callback(config):
 
 def on_mode_change():
     """Pulisce lo stato della sessione che dipende dalla modalità quando questa viene cambiata."""
-    keys_to_clear = [k for k in st.session_state.keys() if '_ms_' in k or 'tabella_in_modifica' in k or 'mass_edits' in k or 'exported_file_paths' in k]
+    keys_to_clear = [k for k in st.session_state.keys() if '_ms_' in k or 'tabella_in_modifica' in k or 'mass_edits' in k or 'exported_file_paths' in k or k.startswith('live_mapping_state_')]
     for key in keys_to_clear:
         if key in st.session_state: del st.session_state[key]
 
@@ -126,19 +126,85 @@ def delete_file(directory, filename):
     except Exception as e:
         st.error(f"Errore durante l'eliminazione del file {filename}: {e}")
 
+# SOSTITUISCI LA TUA get_current_config CON QUESTA VERSIONE
 def get_current_config():
-    """Genera la configurazione dinamica basata sulla modalità selezionata."""
+    """
+    Genera la configurazione dinamica. Se un codice studio è selezionato,
+    crea percorsi specifici per quel cliente.
+    """
     mode = st.session_state.get('tipo_struttura', 'Ditta').lower()
+    codice_studio = st.session_state.get('codice_studio_valore_sicuro')
+
+    # Percorso base per la modalità (es. ./data/ditta/)
+    mode_data_dir = os.path.join(DATA_DIR, mode)
+    mode_mapping_dir = os.path.join(MAPPING_BASE_DIR, mode)
+    mode_export_dir = os.path.join(EXPORT_BASE_DIR, mode)
+
+    # I percorsi diventano specifici per il cliente SE un codice studio è stato caricato
+    if codice_studio:
+        appoggio_dir = os.path.join(mode_data_dir, codice_studio, 'appoggio')
+        mapping_dir = os.path.join(mode_mapping_dir, codice_studio)
+        export_dir = os.path.join(mode_export_dir, codice_studio)
+    else:
+        # Se nessun cliente è selezionato, punta alle cartelle base
+        appoggio_dir = os.path.join(mode_data_dir, 'appoggio')
+        mapping_dir = mode_mapping_dir
+        export_dir = mode_export_dir
+
     config = {
-        "mode": mode, "struttura_dir": os.path.join(DATA_DIR, mode, 'struttura'),
-        "appoggio_dir": os.path.join(DATA_DIR, mode, 'appoggio'),
-        "mapping_dir": os.path.join(MAPPING_BASE_DIR, mode),
-        "export_dir": os.path.join(EXPORT_BASE_DIR, mode),
-        "db_struttura_prefix": f"struttura_{mode}_", "db_appoggio_suffix": f"_appoggio_{mode}"
+        "mode": mode,
+        # La struttura è SEMPRE condivisa, come richiesto
+        "struttura_dir": os.path.join(mode_data_dir, 'struttura'),
+        # Gli altri percorsi sono dinamici
+        "appoggio_dir": appoggio_dir,
+        "mapping_dir": mapping_dir,
+        "export_dir": export_dir,
+        "db_struttura_prefix": f"struttura_{mode}_",
+        "db_appoggio_suffix": f"_appoggio_{mode}"
     }
+    
+    # Crea tutte le cartelle necessarie per evitare errori
     for key, path in config.items():
-        if key.endswith("_dir"): os.makedirs(path, exist_ok=True)
+        if key.endswith("_dir"):
+            os.makedirs(path, exist_ok=True)
+            
     return config
+
+# Funzione helper per il salvataggio della configurazione globale (definita qui, non all'interno di step_5)
+# Questa funzione ora gestirà una struttura di mappatura annidata
+def save_global_mapping_config(config, current_full_mapping_data):
+    """Salva le configurazioni globali di mappatura in file JSON."""
+    mapping_dir = config["mapping_dir"]
+    
+    # current_full_mapping_data['column_mappings'] è ora un dizionario annidato
+    global_mapping_path = os.path.join(mapping_dir, "global_mapping.json")
+    with open(global_mapping_path, 'w', encoding='utf-8') as f:
+        json.dump(current_full_mapping_data['column_mappings'], f, indent=4) # Salva solo il sottodizionario delle mappature
+    
+    date_columns_path = os.path.join(mapping_dir, "date_columns.json")
+    with open(date_columns_path, 'w', encoding='utf-8') as f:
+        json.dump({"date_columns": current_full_mapping_data['date_format_columns']}, f, indent=4)
+
+    studio_mapping_path = os.path.join(mapping_dir, "studio_mapping.json")
+    with open(studio_mapping_path, 'w', encoding='utf-8') as f:
+        json.dump({"codice_studio_column": current_full_mapping_data['studio_code_column']}, f, indent=4)
+    
+    force_1to1_tables_path = os.path.join(mapping_dir, "force_1to1_tables.json")
+    with open(force_1to1_tables_path, 'w', encoding='utf-8') as f:
+        json.dump({"force_1to1_tables": current_full_mapping_data['force_1to1_tables']}, f, indent=4)
+    
+    # st.success("Configurazioni globali salvate automaticamente.") # Non mostrare in ogni rerun
+
+# NUOVA FUNZIONE GLOBALE PER LA CALLBACK ON_CHANGE
+# La callback ora gestisce una lista di valori selezionati
+def update_live_mapping_callback(source_key, mode): # Rimosso current_selected_struttura_table_name dall'args
+    """Aggiorna lo stato della mappatura live quando un multiselect cambia."""
+    live_mapping_state_key = f"live_mapping_state_{mode}" # Revertito a chiave globale per mode
+    widget_key = f"map_global_{source_key}_{mode}"
+    
+    if widget_key in st.session_state:
+        # st.multiselect restituisce una lista, quindi salviamo la lista direttamente
+        st.session_state[live_mapping_state_key][source_key] = st.session_state[widget_key]
 
 # In pages/1_Wizard_Dati.py, nel blocco delle FUNZIONI HELPER
 import unicodedata
@@ -150,35 +216,134 @@ def sanitize_column_name(col_name):
     - Converte in minuscolo.
     - Sostituisce spazi e punteggiatura con un singolo trattino basso.
     """
-    # Normalizza in NFD (es. 'è' -> 'e' + '`') e rimuove i diacritici (accenti)
     s = ''.join(c for c in unicodedata.normalize('NFD', str(col_name)) if unicodedata.category(c) != 'Mn')
-    # Converte in minuscolo e sostituisce caratteri non alfanumerici con spazio
     s = ''.join(c if c.isalnum() else ' ' for c in s.lower())
-    # Sostituisce spazi multipli con un singolo trattino basso
     return '_'.join(s.split())
 
 # --- FUNZIONI DEGLI STEP DEL WIZARD ---
 
+# SOSTITUISCI IL TUO step_0 CON QUESTA VERSIONE
 def step_0_impostazioni(config, engine):
     mode_name = config['mode'].capitalize()
-    st.header('Step 1: Impostazioni Iniziali')
+    st.header(f'Step 1: Selezione del Progetto di Lavoro ({mode_name})')
     st.info(f"Il wizard è in esecuzione in modalità: **{mode_name}**.")
     st.warning("Per cambiare modalità, torna alla pagina di Configurazione Iniziale.")
-    
-    def save_codice_studio_callback():
-        st.session_state.codice_studio_valore_sicuro = st.session_state.codice_studio_input_widget
-    st.text_input('Codice Studio (3 caratteri)', value=st.session_state.get('codice_studio_valore_sicuro', ''), max_chars=3, key='codice_studio_input_widget', on_change=save_codice_studio_callback)
-    
-    if st.button('🗑️ Svuota Database e Resetta', key='svuota_db_top'):
+    codice_studio = st.session_state.get('codice_studio_valore_sicuro')
+
+ # --- Funzione helper per la pulizia completa ---
+    def _svuota_database_e_resetta_stato():
+        """
+        CANCELLA FISICAMENTE TUTTE LE TABELLE DAL DATABASE E RESETTA LO STATO DELLA SESSIONE.
+        """
         try:
-            engine.dispose()
-            with engine.connect() as conn:
+            with st.spinner("Cancellazione di tutte le tabelle dal database in corso..."):
                 inspector = inspect(engine)
-                for table_name in inspector.get_table_names(): conn.execute(text(f'DROP TABLE IF EXISTS "{table_name}"'))
+                all_tables = inspector.get_table_names()
+                with engine.connect() as connection:
+                    with connection.begin() as transaction:
+                        # Disabilita temporaneamente i vincoli per SQLite per evitare errori di dipendenza
+                        connection.execute(text("PRAGMA foreign_keys = OFF;"))
+                        for table_name in all_tables:
+                            connection.execute(text(f'DROP TABLE IF EXISTS "{table_name}"'))
+                        # Riabilita i vincoli
+                        connection.execute(text("PRAGMA foreign_keys = ON;"))
+                        transaction.commit()
+            
+            # Pulisce lo stato della sessione, mantenendo solo le impostazioni di base
+            st.success("Database svuotato con successo!")
+            st.info("Reset dello stato dell'applicazione...")
+            chiavi_da_mantenere = ['wizard_step', 'tipo_struttura']
             for key in list(st.session_state.keys()):
-                if key != 'tipo_struttura': del st.session_state[key]
-            st.success('Database e stato resettati. Ricarica la pagina (F5).'); st.rerun()
-        except Exception as e: st.error(f"Errore: {e}")
+                if key not in chiavi_da_mantenere:
+                    del st.session_state[key]
+            
+            # Resetta lo step del wizard a 0
+            st.session_state.wizard_step = 0
+            
+        except Exception as e:
+            st.error(f"Errore durante la pulizia del database: {e}")
+        
+        # Forza un refresh della pagina
+        st.rerun()
+
+    # --- CASO 1: UN PROGETTO È GIÀ STATO CARICATO ---
+    if codice_studio:
+        st.success(f"Sei attualmente al lavoro per lo studio: **{codice_studio}**")
+        st.info("Tutte le operazioni avverranno nelle cartelle dedicate a questo studio. Per cambiare, chiudi prima il lavoro corrente.")
+        
+        def chiudi_lavoro():
+            # Pulisce lo stato per permettere di cambiare studio
+            keys_to_clear = [k for k in st.session_state.keys() if k != 'tipo_struttura' and k != 'wizard_step']
+            for key in keys_to_clear:
+                del st.session_state[key]
+        
+        if st.button("↩️ Chiudi Lavoro e Seleziona un altro Studio"):
+            chiudi_lavoro()
+            st.rerun()
+
+    # --- CASO 2: NESSUN PROGETTO CARICATO, MOSTRIAMO LA SCHERMATA DI SCELTA ---
+    else:
+        st.info("Scegli se caricare un lavoro esistente o crearne uno nuovo, poi clicca 'Procedi'.")
+        
+        # Scansiona le cartelle per trovare i lavori già creati
+        base_mapping_dir = config['mapping_dir']
+        try:
+            existing_studios = [d for d in os.listdir(base_mapping_dir) if os.path.isdir(os.path.join(base_mapping_dir, d))]
+        except FileNotFoundError:
+            existing_studios = []
+        
+        # Bottoni radio per scegliere l'azione
+        action = st.radio(
+            "Azione:",
+            ["Crea un Nuovo Lavoro", "Carica un Lavoro Esistente"],
+            key="project_action_radio",
+            horizontal=True,
+            label_visibility="collapsed"
+        )
+
+        studio_code_to_process = ""
+
+        # Mostra l'interfaccia giusta in base alla scelta
+        if action == "Carica un Lavoro Esistente":
+            if not existing_studios:
+                st.warning("Nessun lavoro esistente trovato. Devi prima crearne uno.")
+            else:
+                studio_code_to_process = st.selectbox(
+                    "Scegli lo studio da caricare:",
+                    options=sorted(existing_studios),
+                    key="studio_loader_select"
+                )
+        else: # Crea un Nuovo Lavoro
+            studio_code_to_process = st.text_input(
+                "Inserisci il nuovo Codice Studio (3 caratteri):",
+                max_chars=3,
+                key="studio_creator_input"
+            ).upper()
+
+        # Unico bottone per confermare l'azione
+        if st.button("Procedi", type="primary"):
+            if studio_code_to_process:
+                code_to_set = str(studio_code_to_process).strip()
+                # Valida il codice solo se stiamo creando un nuovo lavoro
+                if action == "Crea un Nuovo Lavoro" and (len(code_to_set) != 3 or not code_to_set.isalnum()):
+                    st.error("Il nuovo codice deve essere di 3 caratteri alfanumerici.")
+                else:
+                    st.session_state.codice_studio_valore_sicuro = code_to_set
+                    # Forza la creazione delle cartelle se non esistono
+                    get_current_config()
+                    st.success(f"Lavoro per lo studio '{code_to_set}' caricato/creato. La pagina si aggiornerà.")
+                    import time
+                    time.sleep(1) # Piccola pausa per far leggere il messaggio
+                    st.rerun()
+            else:
+                st.error("Per favor, seleziona uno studio o inserisci un nuovo codice prima di procedere.")
+
+    st.markdown("---")
+    # --- Pulsante di pulizia potenziato ---
+    st.warning("ATTENZIONE: L'opzione seguente cancellerà l'INTERO database (tutte le tabelle e i dati) e resetterà la sessione di lavoro.")
+    if st.button('🗑️ Svuota INTERO Database e Resetta', key='svuota_db_top', on_click=_svuota_database_e_resetta_stato):
+        pass # La logica è gestita dalla callback on_click
+
 
 def step_1_upload_struttura(config, engine):
     mode_name = config['mode'].capitalize()
@@ -202,9 +367,7 @@ def step_1_upload_struttura(config, engine):
             c2.button("🗑️ Rimuovi", key=f"remove_struttura_{mode_name}_{i}", on_click=delete_file, args=(config["struttura_dir"], filename))
     except FileNotFoundError: st.warning("Cartella non ancora creata.")
 
-# In pages/1_Wizard_Dati.py
-
-# In pages/1_Wizard_Dati.py
+# SOSTITUISCI IL TUO step_2 CON QUESTA VERSIONE "INTELLIGENTE"
 def step_2_import_struttura(config, engine):
     mode_name = config['mode'].capitalize()
     st.header(f"Step 3: Importa Struttura ({mode_name})")
@@ -216,22 +379,36 @@ def step_2_import_struttura(config, engine):
     if not files: 
         st.warning('Nessun file .xlsx trovato.'); return
     
-    # --> MODIFICA QUI: 'default=files' preseleziona tutti i file trovati.
-    selected_files = st.multiselect(
-        'Seleziona file da importare', 
-        files, 
-        default=files, 
-        key=f'struttura_ms_{mode_name}'
-    )
-    
+    selected_files = st.multiselect('Seleziona file da importare', files, default=files, key=f'struttura_ms_{mode_name}')
     numeric_header_row = st.number_input("Riga intestazioni NUMERICHE", min_value=1, value=2, key=f'struttura_numeric_header_{mode_name}')
     desc_header_row = st.number_input("Riga intestazioni DESCRITTIVE", min_value=1, value=3, key=f'struttura_desc_header_{mode_name}')
     
     if st.button('Importa Struttura', key=f'importa_struttura_btn_{mode_name}'):
-        with st.spinner("Importazione..."):
+        with st.spinner("Importazione in corso..."):
+            
+            # --- BLOCCO AGGIUNTO: PULIZIA PREVENTIVA DELLE VECCHIE TABELLE STRUTTURA ---
+            try:
+                st.write("Pulizia delle vecchie tabelle di struttura...")
+                inspector = inspect(engine)
+                all_db_tables = inspector.get_table_names()
+                struttura_tables_to_drop = [t for t in all_db_tables if t.startswith(config["db_struttura_prefix"])]
+                
+                if struttura_tables_to_drop:
+                    with engine.connect() as connection:
+                        with connection.begin() as transaction:
+                            for table_name in struttura_tables_to_drop:
+                                connection.execute(text(f'DROP TABLE IF EXISTS "{table_name}"'))
+                            transaction.commit()
+                    st.info(f"Rimosse {len(struttura_tables_to_drop)} vecchie tabelle di struttura.")
+                else:
+                    st.info("Nessuna vecchia tabella di struttura da rimuovere.")
+            except Exception as e:
+                st.error(f"Errore durante la pulizia delle vecchie tabelle di struttura: {e}")
+                st.stop()
+            # --- FINE BLOCCO DI PULIZIA ---
+
             for file_name in selected_files:
                 try:
-                    # ... (la logica interna rimane invariata)
                     workbook = openpyxl.load_workbook(os.path.join(config["struttura_dir"], file_name), read_only=True)
                     sheet = workbook.active
                     numeric_values = [cell.value for cell in sheet[numeric_header_row]]
@@ -250,16 +427,20 @@ def step_2_import_struttura(config, engine):
                     
                     df_structure = pd.DataFrame(columns=final_headers)
                     table_name = f'{config["db_struttura_prefix"]}{os.path.splitext(file_name)[0]}'
+                    # Nota: if_exists='replace' qui agisce come 'create' perché abbiamo già cancellato tutto
                     df_structure.to_sql(table_name, engine, if_exists='replace', index=False)
-                    st.success(f"Struttura '{table_name}' importata con colonne sanificate.")
+                    st.success(f"Struttura '{table_name}' importata con successo.")
                     
-                    header_map_path = os.path.join(config["mapping_dir"], f"{table_name}_headers.json")
-                    with open(header_map_path, 'w', encoding='utf-8') as f: json.dump(header_map, f, indent=4)
-                    
+                    # Salva le mappe dei nomi per l'export e la UI
                     pretty_name_map_path = os.path.join(config["mapping_dir"], f"{table_name}_prettynames.json")
                     with open(pretty_name_map_path, 'w', encoding='utf-8') as f: json.dump(pretty_name_map, f, indent=4)
                     
-                except Exception as e: st.error(f"Errore importando {file_name}: {e}")
+                    # Salva la mappa per le intestazioni numeriche (potrebbe servire in futuro per l'export)
+                    header_map_path = os.path.join(config["mapping_dir"], f"{table_name}_headers.json")
+                    with open(header_map_path, 'w', encoding='utf-8') as f: json.dump(header_map, f, indent=4)
+
+                except Exception as e: 
+                    st.error(f"Errore importando {file_name}: {e}")
 
 def step_3_upload_appoggio(config, engine):
     mode_name = config['mode'].capitalize()
@@ -283,7 +464,7 @@ def step_3_upload_appoggio(config, engine):
             c2.button("🗑️ Rimuovi", key=f"remove_appoggio_{mode_name}_{i}", on_click=delete_file, args=(config["appoggio_dir"], filename))
     except FileNotFoundError: st.warning("Cartella non ancora creata.")
 
-# SOSTITUISCI IL TUO step_4 CON QUESTA VERSIONE POTENZIATA
+# SOSTITUISCI IL TUO step_4 CON QUESTA VERSIONE "INTELLIGENTE"
 def step_4_import_appoggio(config, engine):
     mode_name = config['mode'].capitalize()
     st.header(f"Step 5: Importa Dati di Appoggio ({mode_name})")
@@ -294,57 +475,56 @@ def step_4_import_appoggio(config, engine):
     if not files: 
         st.warning('Nessun file trovato.'); return
     
-    selected_files = st.multiselect(
-        'Seleziona file da importare', 
-        files, 
-        default=files, 
-        key=f'appoggio_ms_{mode_name}'
-    )
-    
+    selected_files = st.multiselect('Seleziona file da importare', files, default=files, key=f'appoggio_ms_{mode_name}')
     header_row = st.number_input("Riga intestazioni", min_value=1, value=1, key=f'appoggio_header_{mode_name}')
     
     if st.button('Importa Dati', key=f'importa_appoggio_btn_{mode_name}'):
-        with st.spinner("Importazione..."):
+        with st.spinner("Importazione in corso..."):
+            
+            # --- BLOCCO AGGIUNTO: PULIZIA PREVENTIVA DELLE VECCHIE TABELLE DI APPOGGIO ---
+            try:
+                st.write("Pulizia delle vecchie tabelle di appoggio...")
+                inspector = inspect(engine)
+                all_db_tables = inspector.get_table_names()
+                appoggio_tables_to_drop = [t for t in all_db_tables if t.endswith(config["db_appoggio_suffix"])]
+                
+                if appoggio_tables_to_drop:
+                    with engine.connect() as connection:
+                        with connection.begin() as transaction:
+                            for table_name in appoggio_tables_to_drop:
+                                connection.execute(text(f'DROP TABLE IF EXISTS "{table_name}"'))
+                            transaction.commit()
+                    st.info(f"Rimosse {len(appoggio_tables_to_drop)} vecchie tabelle di appoggio.")
+                else:
+                    st.info("Nessuna vecchia tabella di appoggio da rimuovere.")
+            except Exception as e:
+                st.error(f"Errore durante la pulizia delle vecchie tabelle di appoggio: {e}")
+                st.stop()
+            # --- FINE BLOCCO DI PULIZIA ---
+
             for file_name in selected_files:
                 try:
                     file_path = os.path.join(config["appoggio_dir"], file_name)
                     
-                    # --- BLOCCO AGGIUNTO: ESTRAZIONE COMMENTI CON OPENPYXL ---
-                    st.write(f"Estrazione commenti da `{file_name}`...")
+                    # Estrazione commenti con openpyxl (logica invariata)
                     workbook = openpyxl.load_workbook(file_path)
                     sheet = workbook.active
-                    
                     comments_map = {}
-                    # Itera sulle celle della riga di intestazione specificata
                     for cell in sheet[header_row]:
                         if cell.comment and cell.value:
-                            # Pulisce il nome della colonna e il testo del commento
                             sanitized_header = sanitize_column_name(cell.value)
-                            # --- INIZIO BLOCCO DI PULIZIA COMMENTO ---
                             raw_text = cell.comment.text
-                            
-                            # Cerca la posizione dei primi due punti ":"
                             colon_position = raw_text.find(':')
-                            
-                            # Se li trova, prende solo il testo che viene DOPO. Altrimenti, prende tutto.
-                            if colon_position != -1:
-                                comment_text = raw_text[colon_position + 1:].strip()
-                            else:
-                                comment_text = raw_text.strip()
-                            
+                            comment_text = raw_text[colon_position + 1:].strip() if colon_position != -1 else raw_text.strip()
                             comments_map[sanitized_header] = comment_text
-                            # --- FINE BLOCCO DI PULIZIA COMMENTO ---
-                                                
-                    # Salva i commenti in un file JSON dedicato
+                    
                     comments_path = os.path.join(config["mapping_dir"], "appoggio_comments.json")
                     with open(comments_path, 'w', encoding='utf-8') as f:
                         json.dump(comments_map, f, indent=4)
-                    
                     if comments_map:
-                        st.success(f"Trovati e salvati {len(comments_map)} commenti.")
-                    # --- FINE BLOCCO AGGIUNTO ---
+                        st.success(f"Trovati e salvati {len(comments_map)} commenti da `{file_name}`.")
 
-                    # La logica originale per leggere i dati e salvarli nel DB rimane invariata
+                    # Lettura dati e importazione nel DB
                     df = pd.read_excel(file_path, header=header_row - 1, dtype=str).fillna('')
                     pretty_name_map = {sanitize_column_name(col): str(col).strip() for col in df.columns}
                     df.columns = [sanitize_column_name(col) for col in df.columns]
@@ -356,13 +536,22 @@ def step_4_import_appoggio(config, engine):
                     pretty_name_map_path = os.path.join(config["mapping_dir"], f"{table_name}_prettynames.json")
                     with open(pretty_name_map_path, 'w', encoding='utf-8') as f: json.dump(pretty_name_map, f, indent=4)
                     
-                except Exception as e: st.error(f"Errore importando {file_name}: {e}")
+                except Exception as e: 
+                    st.error(f"Errore importando {file_name}: {e}")
 
-# SOSTITUISCI INTERAMENTE LA TUA FUNZIONE CON QUESTA
+# SOSTITUISCI INTERAMENTE LA TUA FUNZIONE step_5_mappatura_globale CON QUESTA
 def step_5_mappatura_globale(config, engine):
     mode_name = config['mode'].capitalize()
     mode = config['mode']
     st.header(f'Step 6: Mappatura Globale ({mode_name})')
+
+    # current_full_mapping_data sarà popolato alla fine della funzione
+    current_full_mapping_data = {
+        "column_mappings": {}, 
+        "date_format_columns": [],
+        "studio_code_column": "", 
+        "force_1to1_tables": []
+    }
 
     try:
         # --- 1. CARICAMENTO DATI E SETUP ---
@@ -370,58 +559,93 @@ def step_5_mappatura_globale(config, engine):
         all_tables = inspector.get_table_names()
         struttura_tables = sorted([t for t in all_tables if t.startswith(config["db_struttura_prefix"])])
         appoggio_tables = sorted([t for t in all_tables if t.endswith(config["db_appoggio_suffix"])])
+        
         if not (struttura_tables and appoggio_tables):
             st.error(f'Importa tabelle Struttura e Appoggio per la modalità {mode_name}.'); return
         
-        appoggio_table_name = appoggio_tables[0]
-        source_cols_sanitized = pd.read_sql_table(appoggio_table_name, engine).columns.tolist()
-
-        master_pretty_name_map = {}
-        for table_name in (struttura_tables + appoggio_tables):
-            path = os.path.join(config["mapping_dir"], f"{table_name}_prettynames.json")
+        # Carica pretty names per tutte le tabelle e colonne
+        all_source_cols_sanitized_full_paths = [] 
+        master_pretty_name_map = {} 
+        for table_name_sanitized in (struttura_tables + appoggio_tables):
+            path = os.path.join(config["mapping_dir"], f"{table_name_sanitized}_prettynames.json")
             if os.path.exists(path):
-                with open(path, 'r', encoding='utf-8') as f: master_pretty_name_map.update(json.load(f))
-        
-        def get_pretty_name(s_name): return master_pretty_name_map.get(s_name, s_name)
-        
-        unique_dest_cols = set()
-        for table in struttura_tables:
-            cols = pd.read_sql(f'SELECT * FROM "{table}" LIMIT 0', engine).columns
-            unique_dest_cols.update(cols)
-        sorted_unique_cols = sorted(list(unique_dest_cols))
-        dest_options = ["-- Non mappare --", "Nascondi"] + sorted_unique_cols
+                with open(path, 'r', encoding='utf-8') as f:
+                    master_pretty_name_map.update(json.load(f))
+            display_table_name_formatted = table_name_sanitized.replace(config['db_struttura_prefix'], '').replace(config['db_appoggio_suffix'], '').replace('_', ' ').strip()
+            master_pretty_name_map[table_name_sanitized] = display_table_name_formatted
 
-        # --- BLOCCO AGGIUNTO: CARICAMENTO COMMENTI ---
+        # Raccogli tutte le colonne sorgente con il loro percorso completo
+        for appoggio_tbl in appoggio_tables:
+            cols_in_appoggio_tbl = pd.read_sql_table(appoggio_tbl, engine).columns.tolist()
+            for col in cols_in_appoggio_tbl:
+                all_source_cols_sanitized_full_paths.append(f"{appoggio_tbl}.{col}")
+        source_cols_for_ui = sorted(list(set(all_source_cols_sanitized_full_paths)))
+
+        # Funzione helper per ottenere nomi leggibili
+        def get_pretty_name(s_name):
+            return master_pretty_name_map.get(s_name, s_name)
+        
+        # --- NUOVA LOGICA PER OPZIONI DI DESTINAZIONE (MAPPATURA ASTRATTA) ---
+        # Raccogliamo tutti i nomi di colonna UNICI da tutte le tabelle di struttura
+        unique_dest_col_names_sanitized = set()
+        for table_name in struttura_tables:
+            cols_in_struttura_tbl = pd.read_sql(f'SELECT * FROM "{table_name}" LIMIT 0', engine).columns.tolist()
+            for col_name_sanitized in cols_in_struttura_tbl:
+                unique_dest_col_names_sanitized.add(col_name_sanitized)
+        
+        # Questa sarà la nostra lista di opzioni per la mappatura
+        sorted_unique_dest_col_names = sorted(list(unique_dest_col_names_sanitized))
+        dest_options_for_multiselect = ["-- Non mappare --", "Nascondi"] + sorted_unique_dest_col_names
+        
+        # NUOVA Funzione per formattare le opzioni di destinazione (mostra solo il pretty name)
+        def format_dest_col_name_for_display(sanitized_col_name):
+            if sanitized_col_name in ["-- Non mappare --", "Nascondi"]:
+                return sanitized_col_name
+            return get_pretty_name(sanitized_col_name)
+
+        # Caricamento commenti dalle intestazioni dei file di appoggio
         comments_path = os.path.join(config["mapping_dir"], "appoggio_comments.json")
-        comments_map = {}
-        if os.path.exists(comments_path):
-            with open(comments_path, 'r', encoding='utf-8') as f:
-                comments_map = json.load(f)
-        # --- FINE BLOCCO AGGIUNTO ---
+        comments_map = json.load(open(comments_path, 'r', encoding='utf-8')) if os.path.exists(comments_path) else {}
 
+        # --- 2. GESTIONE STATO E CARICAMENTO MAPPATURE ESISTENTI ---
+        loaded_full_mapping_data_from_file = {}
+        mapping_path = os.path.join(config["mapping_dir"], "global_mapping.json")
+        if os.path.exists(mapping_path):
+            with open(mapping_path, 'r', encoding='utf-8') as f:
+                loaded_full_mapping_data_from_file = json.load(f)
+        
+        loaded_global_settings = st.session_state.get('loaded_template_data', {})
+        if not loaded_global_settings: 
+            date_columns_path = os.path.join(config["mapping_dir"], "date_columns.json")
+            if os.path.exists(date_columns_path):
+                with open(date_columns_path, 'r', encoding='utf-8') as f:
+                    loaded_global_settings.setdefault("date_format_columns", json.load(f).get("date_columns", []))
+            
+            studio_mapping_path = os.path.join(config["mapping_dir"], "studio_mapping.json")
+            if os.path.exists(studio_mapping_path):
+                with open(studio_mapping_path, 'r', encoding='utf-8') as f:
+                    loaded_global_settings.setdefault("studio_code_column", json.load(f).get("codice_studio_column", ""))
 
-        # --- 2. GESTIONE STATO CENTRALE ---
-        live_mapping_state_key = f"live_mapping_state_{mode}"
-
-        def update_live_mapping(source_key):
-            widget_key = f"map_global_{source_key}_{mode}"
-            if widget_key in st.session_state:
-                st.session_state[live_mapping_state_key][source_key] = st.session_state[widget_key]
-
+            force_1to1_tables_path = os.path.join(config["mapping_dir"], "force_1to1_tables.json")
+            if os.path.exists(force_1to1_tables_path):
+                with open(force_1to1_tables_path, 'r', encoding='utf-8') as f:
+                    loaded_global_settings.setdefault("force_1to1_tables", json.load(f).get("force_1to1_tables", []))
+            else: 
+                loaded_global_settings.setdefault("force_1to1_tables", [])
+        
+        # Inizializzazione dello stato live della mappatura
+        live_mapping_state_key = f"live_mapping_state_{mode}" 
         if live_mapping_state_key not in st.session_state:
             st.session_state[live_mapping_state_key] = {}
-            
-            loaded_mapping_data = st.session_state.get('loaded_template_data', {})
-            if not loaded_mapping_data:
-                mapping_path = os.path.join(config["mapping_dir"], "global_mapping.json")
-                if os.path.exists(mapping_path):
-                    with open(mapping_path, 'r', encoding='utf-8') as f:
-                        loaded_mapping_data.setdefault("column_mappings", json.load(f))
-
-            current_mapping = loaded_mapping_data.get('column_mappings', {})
-            for col in source_cols_sanitized:
-                source_key = f"{appoggio_table_name}.{col}"
-                st.session_state[live_mapping_state_key][source_key] = current_mapping.get(source_key, dest_options[0])
+            for col_full_path in source_cols_for_ui:
+                default_dest_list = loaded_full_mapping_data_from_file.get(col_full_path, ["-- Non mappare --"])
+                if not isinstance(default_dest_list, list):
+                    default_dest_list = [default_dest_list]
+                # Valida che le opzioni caricate esistano ancora
+                valid_default_dest_list = [d for d in default_dest_list if d in dest_options_for_multiselect]
+                st.session_state[live_mapping_state_key][col_full_path] = valid_default_dest_list if valid_default_dest_list else ["-- Non mappare --"]
+        
+        current_live_mapping = st.session_state[live_mapping_state_key]
 
         # --- 3. GESTIONE TEMPLATE (UI) ---
         st.subheader("Gestione Template di Mappatura")
@@ -429,110 +653,99 @@ def step_5_mappatura_globale(config, engine):
         os.makedirs(templates_dir, exist_ok=True)
         saved_templates = ["-- Non caricare nulla --"] + sorted([os.path.splitext(f)[0].replace('_', ' ') for f in os.listdir(templates_dir) if f.endswith('.json')])
         
-        # Determina l'indice del template caricato per il selectbox
         loaded_name_for_display = st.session_state.get('loaded_template_name')
         index = saved_templates.index(loaded_name_for_display) if loaded_name_for_display in saved_templates else 0
         st.selectbox("Carica un Template:", options=saved_templates, index=index, key=f"template_loader_{mode}", on_change=load_template_callback, args=(config,))
         st.markdown("---")
 
         # --- 4. INTERFACCIA DI MAPPATURA ---
-        st.subheader("Mappatura Colonne Dati")
-        # Inizializzazione stati per i filtri
-        if f'hide_unmapped_{mode}' not in st.session_state: st.session_state[f'hide_unmapped_{mode}'] = False
-        if f'hide_hidden_{mode}' not in st.session_state: st.session_state[f'hide_hidden_{mode}'] = False 
-        
-        st.checkbox("Nascondi colonne non mappate", key=f'hide_unmapped_{mode}')
-        st.checkbox("Nascondi colonne impostate su 'Nascondi'", key=f'hide_hidden_{mode}')
+        st.subheader(f"Mappatura Colonne Dati Sorgente a Descrizioni di Destinazione")
+        st.info("Mappa una sorgente a una descrizione. Se quella descrizione esiste in più tabelle di struttura, verranno popolate tutte automaticamente nei casi di mappatura semplice (1-a-1).")
+
+        hide_unmapped_key = f'hide_unmapped_{mode}_global'
+        hide_hidden_key = f'hide_hidden_{mode}_global'
+        st.checkbox("Nascondi colonne non mappate", key=hide_unmapped_key, value=st.session_state.get(hide_unmapped_key, False))
+        st.checkbox("Nascondi colonne impostate su 'Nascondi'", key=hide_hidden_key, value=st.session_state.get(hide_hidden_key, False))
         st.markdown("---")
 
-        cols_to_display = source_cols_sanitized
-        if st.session_state[f'hide_unmapped_{mode}']:
-            cols_to_display = [c for c in cols_to_display if st.session_state[live_mapping_state_key].get(f"{appoggio_table_name}.{c}") != '-- Non mappare --']
-        if st.session_state[f'hide_hidden_{mode}']:
-            cols_to_display = [c for c in cols_to_display if st.session_state[live_mapping_state_key].get(f"{appoggio_table_name}.{c}") != 'Nascondi']
+        cols_to_display_filtered = source_cols_for_ui 
+        if st.session_state[hide_unmapped_key]:
+            cols_to_display_filtered = [c for c in cols_to_display_filtered if current_live_mapping.get(c) not in [["-- Non mappare --"], []]]
+        if st.session_state[hide_hidden_key]:
+            cols_to_display_filtered = [c for c in cols_to_display_filtered if current_live_mapping.get(c) != ["Nascondi"]]
 
         # Logica di paginazione
-        page_key = f'mapping_page_{mode}'
+        page_key = f'mapping_page_{mode}_global'
         if page_key not in st.session_state: st.session_state[page_key] = 0
-        items_per_page = 15
-        total_pages = (len(cols_to_display) + items_per_page - 1) // items_per_page
-        st.session_state[page_key] = min(st.session_state[page_key], max(0, total_pages - 1))
+        items_per_page = 10
+        total_pages = (len(cols_to_display_filtered) + items_per_page - 1) // items_per_page
+        st.session_state[page_key] = min(st.session_state.get(page_key, 0), max(0, total_pages - 1))
         start_index, end_index = st.session_state[page_key] * items_per_page, (st.session_state[page_key] + 1) * items_per_page
-        paginated_cols = cols_to_display[start_index:end_index]
+        paginated_cols = cols_to_display_filtered[start_index:end_index]
 
-        st.write(f"**Sorgente: {get_pretty_name(appoggio_table_name)}**")
+        st.write(f"**Mappa Colonne Sorgente (Pagina {st.session_state[page_key] + 1} di {total_pages})**")
         
-        for col in paginated_cols: # Rendering dei widget
-            source_key = f"{appoggio_table_name}.{col}"
-            default_sel = st.session_state[live_mapping_state_key].get(source_key, dest_options[0])
-            default_idx = dest_options.index(default_sel) if default_sel in dest_options else 0
+        for col_full_path in paginated_cols:
+            default_selected_destinations = current_live_mapping.get(col_full_path, ["-- Non mappare --"])
+            source_table_name_raw, source_col_name_sanitized = col_full_path.split('.', 1)
+            source_table_display_name = get_pretty_name(source_table_name_raw)
+            display_pretty_name = get_pretty_name(source_col_name_sanitized)
+            comment_text = comments_map.get(source_col_name_sanitized)
+            label_to_show = f"`{display_pretty_name}` (da `{source_table_display_name}`) → 💬" if comment_text else f"`{display_pretty_name}` (da `{source_table_display_name}`) →"
 
-            # --- INIZIO BLOCCO COMMENTI INTEGRATO ---
-            pretty_label = get_pretty_name(col)
-            comment_text = comments_map.get(col) # Cerca il commento per la colonna sanificata
-
-            # Aggiungi un'icona 💬 se il commento esiste
-            label_to_show = f"`{pretty_label}` → 💬" if comment_text else f"`{pretty_label}` →"
-
-            # Crea il widget selectbox usando l'etichetta e l'aiuto a comparsa
-            scelta = st.selectbox(
+            st.multiselect(
                 label_to_show,
-                options=dest_options,
-                index=default_idx,
-                key=f"map_global_{source_key}_{mode}", # Manteniamo la tua chiave originale
-                format_func=get_pretty_name,
-                on_change=update_live_mapping, # Manteniamo la tua callback originale
-                args=(source_key,),            # Manteniamo i tuoi args originali
-                help=comment_text # <-- Mostra il commento completo al passaggio del mouse
+                options=dest_options_for_multiselect,           # Usa la nuova lista di opzioni astratte
+                default=default_selected_destinations, 
+                key=f"map_global_{col_full_path}_{mode}",
+                on_change=update_live_mapping_callback, 
+                args=(col_full_path, mode,),
+                help=comment_text,
+                format_func=format_dest_col_name_for_display    # Usa la nuova funzione di formattazione
             )
-            # La logica per 'new_mapping' non è nel tuo snippet, ma andrebbe qui
-            # if scelta != "-- Non mappare --":
-            #     new_mapping[source_key] = scelta
-            # --- FINE BLOCCO COMMENTI INTEGRATO ---
 
-        if total_pages > 1: # Navigazione di pagina
+        if total_pages > 1:
             st.markdown("---")
-            c1,c2,c3 = st.columns([2,3,2]); prev_page = lambda: st.session_state.__setitem__(page_key, st.session_state[page_key] - 1); next_page = lambda: st.session_state.__setitem__(page_key, st.session_state[page_key] + 1)
-            if st.session_state[page_key] > 0: c1.button("⬅️ Prec.", on_click=prev_page)
+            c1,c2,c3 = st.columns([2,3,2]); 
+            if st.session_state[page_key] > 0: c1.button("⬅️ Prec.", on_click=lambda: st.session_state.__setitem__(page_key, st.session_state[page_key] - 1))
             c2.write(f"<div style='text-align: center;'>Pagina {st.session_state[page_key] + 1} di {total_pages}</div>", unsafe_allow_html=True)
-            if st.session_state[page_key] < total_pages - 1: c3.button("Succ. ➡️", on_click=next_page)
-        
+            if st.session_state[page_key] < total_pages - 1: c3.button("Succ. ➡️", on_click=lambda: st.session_state.__setitem__(page_key, st.session_state[page_key] + 1))
         st.markdown("---")
 
-        # --- 5. IMPOSTAZIONI AGGIUNTIVE (REINTEGRATE) ---
-        st.subheader("Impostazioni Aggiuntive")
-        loaded_data = st.session_state.get('loaded_template_data', {})
+        # --- 5. IMPOSTAZIONI AGGIUNTIVE GLOBALI ---
+        st.subheader("Impostazioni Aggiuntive Globali")
         
-        # Colonne Data
-        default_dates = loaded_data.get('date_format_columns', [])
-        valid_default_dates = [c for c in default_dates if c in sorted_unique_cols]
+        # Questi widget ora usano la lista di nomi di colonna unici (astratti)
+        valid_default_dates = [c for c in loaded_global_settings.get('date_format_columns', []) if c in sorted_unique_dest_col_names]
         selected_date_cols = st.multiselect("Colonne da formattare come Data (gg/mm/aaaa):", 
-                                            options=sorted_unique_cols, default=valid_default_dates, 
-                                            key=f'date_cols_selector_{mode}', format_func=get_pretty_name)
-        # Colonna Codice Studio
-        studio_opts = ["-- Non applicare --"] + sorted_unique_cols
-        default_studio = loaded_data.get('studio_code_column', studio_opts[0])
+                                              options=sorted_unique_dest_col_names, default=valid_default_dates, 
+                                              key=f'date_cols_selector_{mode}', format_func=format_dest_col_name_for_display)
+        
+        studio_opts = ["-- Non applicare --"] + sorted_unique_dest_col_names
+        default_studio = loaded_global_settings.get('studio_code_column', studio_opts[0])
         default_studio_idx = studio_opts.index(default_studio) if default_studio in studio_opts else 0
         selected_studio_col = st.selectbox("Colonna per Codice Studio:", options=studio_opts, index=default_studio_idx,
-                                           key=f'studio_col_selector_{mode}', format_func=get_pretty_name)
+                                           key=f'studio_col_selector_{mode}', format_func=format_dest_col_name_for_display)
         
+        valid_default_force_1to1 = [t for t in loaded_global_settings.get('force_1to1_tables', []) if t in struttura_tables]
+        selected_force_1to1_tables = st.multiselect(
+            "Forza mappatura 1-a-1 per queste tabelle di struttura:",
+            options=struttura_tables, default=valid_default_force_1to1,
+            key=f'force_1to1_tables_selector_{mode}', format_func=get_pretty_name,
+            help="Seleziona le tabelle di struttura che devono essere popolate con una mappatura 1-a-1, ignorando la logica di trasformazione 'molti-a-uno'."
+        )
         st.markdown("---")
 
-
-
-        # --- 6. AZIONI SUL TEMPLATE E SALVATAGGIO (REINTEGRATE) ---
-        
-        # Raccoglie tutti i dati correnti pronti per essere salvati
-        current_full_mapping_data = {
-            "column_mappings": {k: v for k, v in st.session_state[live_mapping_state_key].items() if v not in ["-- Non mappare --", "Nascondi"]},
-            "date_format_columns": selected_date_cols,
-            "studio_code_column": selected_studio_col if selected_studio_col != "-- Non applicare --" else ""
+        # --- 6. AZIONI SUL TEMPLATE E SALVATAGGIO ---
+        current_full_mapping_data['column_mappings'] = { 
+            s_key: d_list for s_key, d_list in current_live_mapping.items() 
+            if d_list and d_list != ["-- Non mappare --"] and d_list != ["Nascondi"]
         }
+        current_full_mapping_data['date_format_columns'] = selected_date_cols
+        current_full_mapping_data['studio_code_column'] = selected_studio_col if selected_studio_col != "-- Non applicare --" else ""
+        current_full_mapping_data['force_1to1_tables'] = selected_force_1to1_tables
 
         with st.expander("Azioni su Template e Salvataggio Sessione"):
-            st.write("Usa queste opzioni per salvare le tue impostazioni per un uso futuro o per la sessione corrente.")
-            
-            # Salva come Nuovo Template
             template_name_input = st.text_input("Nome per nuovo template:", key=f"template_name_input_{mode}")
             if st.button("Salva come Nuovo Template", key=f"save_as_template_btn_{mode}"):
                 if template_name_input.strip():
@@ -544,80 +757,100 @@ def step_5_mappatura_globale(config, engine):
                 else: 
                     st.error("Inserisci un nome per il template.")
 
-            # Aggiorna Template Esistente
-            if st.button("Aggiorna Template Caricato", key=f"update_template_btn_{mode}", disabled=(not loaded_name_for_display)):
-                safe_filename = "".join(c for c in loaded_name_for_display if c.isalnum() or c in (' ', '_')).rstrip().replace(' ', '_')
-                template_path = os.path.join(templates_dir, f"{safe_filename}.json")
-                with open(template_path, 'w', encoding='utf-8') as f:
-                    json.dump(current_full_mapping_data, f, indent=4)
-                st.success(f"Template '{loaded_name_for_display}' aggiornato!")
+            if st.button("Aggiorna Template Caricato", key=f"update_template_btn_{mode}", disabled=(not st.session_state.get('loaded_template_name'))):
+                loaded_name_for_display = st.session_state.get('loaded_template_name')
+                if loaded_name_for_display:
+                    safe_filename = "".join(c for c in loaded_name_for_display if c.isalnum() or c in (' ', '_')).rstrip().replace(' ', '_')
+                    template_path = os.path.join(templates_dir, f"{safe_filename}.json")
+                    with open(template_path, 'w', encoding='utf-8') as f:
+                        json.dump(current_full_mapping_data, f, indent=4)
+                    st.success(f"Template '{loaded_name_for_display}' aggiornato!")
 
             st.markdown("---")
-            # Salva per la sessione corrente
-            if st.button("Salva Impostazioni e Procedi", type="primary", key=f'salva_sessione_btn_{mode}'):
-                # Salva i file separati usati dagli step successivi
-                with open(os.path.join(config["mapping_dir"], "global_mapping.json"), 'w', encoding='utf-8') as f:
-                    json.dump(current_full_mapping_data['column_mappings'], f, indent=4)
-                
-                with open(os.path.join(config["mapping_dir"], "date_columns.json"), 'w', encoding='utf-8') as f:
-                    json.dump({"date_columns": current_full_mapping_data['date_format_columns']}, f, indent=4)
-
-                with open(os.path.join(config["mapping_dir"], "studio_mapping.json"), 'w', encoding='utf-8') as f:
-                    json.dump({"codice_studio_column": current_full_mapping_data['studio_code_column']}, f, indent=4)
-                
-                st.success("Impostazioni di sessione salvate! Puoi procedere allo step successivo.")
-                # Pulisce lo stato per assicurare un ricaricamento pulito se si torna indietro
-                if live_mapping_state_key in st.session_state: del st.session_state[live_mapping_state_key]
-
+            st.info("Le configurazioni sono salvate automaticamente ad ogni interazione.")
+    
     except Exception as e: 
         st.error(f"Errore critico durante la mappatura: {e}"); st.exception(e)
 
-# SOSTITUISCI IL TUO STEP 5B CON QUESTA VERSIONE INTERATTIVA
+    # Salvataggio automatico ad ogni interazione
+    save_global_mapping_config(config, current_full_mapping_data)
+
+
+# SOSTITUISCI IL TUO STEP 5B CON QUESTA VERSIONE AGGIORNATA
 def step_5b_verifica_trasformazioni(config, engine):
     st.header("Step 6b: Configura Colonne Chiave per Trasformazioni")
-    st.info("Questo step analizza la mappatura. Se rileva una trasformazione '1 a molti', ti permette di scegliere quali colonne chiave ripetere su ogni riga.")
+    st.info("Questo step analizza la mappatura astratta. Se rileva che una descrizione è mappata da più sorgenti, ti permette di configurare la trasformazione per le tabelle che la contengono.")
 
     try:
-        # Carica la mappatura creata nello step precedente
+        # Carica la mappatura astratta {source_full_path: [dest_col_name_1, ...]}
         mapping_path = os.path.join(config["mapping_dir"], "global_mapping.json")
         if not os.path.exists(mapping_path):
-            st.warning("Esegui prima la mappatura allo Step 6 e salva le impostazioni.")
-            return
+            st.warning("Esegui prima la mappatura allo Step 6."); return
         with open(mapping_path, 'r', encoding='utf-8') as f:
-            global_mapping = json.load(f)
+            global_mapping_abstract = json.load(f)
+        
+        force_1to1_tables_path = os.path.join(config["mapping_dir"], "force_1to1_tables.json")
+        force_1to1_tables = []
+        if os.path.exists(force_1to1_tables_path):
+            with open(force_1to1_tables_path, 'r', encoding='utf-8') as f:
+                force_1to1_tables = json.load(f).get("force_1to1_tables", [])
 
         # Carica i nomi leggibili per un output più chiaro
         inspector = inspect(engine)
         all_tables = inspector.get_table_names()
-        master_pretty_name_map = {t:t for t in all_tables}
-        for table_name in all_tables:
-            path = os.path.join(config["mapping_dir"], f"{table_name}_prettynames.json")
+        master_pretty_name_map = {}
+        for table_name_sanitized in all_tables:
+            path = os.path.join(config["mapping_dir"], f"{table_name_sanitized}_prettynames.json")
             if os.path.exists(path):
                 with open(path, 'r', encoding='utf-8') as f: master_pretty_name_map.update(json.load(f))
-        def get_pretty_name(s_name): return master_pretty_name_map.get(s_name, s_name)
+            display_table_name_formatted = table_name_sanitized.replace(config['db_struttura_prefix'], '').replace(config['db_appoggio_suffix'], '').replace('_', ' ').strip()
+            master_pretty_name_map[table_name_sanitized] = display_table_name_formatted
+        
+        def get_pretty_name(s_name):
+            return master_pretty_name_map.get(s_name, s_name)
 
-        # Analizza le mappature per trovare le tabelle che necessitano di configurazione
+        # --- NUOVA LOGICA DI RILEVAMENTO UNPIVOT ---
+        # 1. Inverti la mappa per avere dest_col -> [lista di sorgenti]
+        dest_to_sources_map = {}
+        for source_full, dest_cols in global_mapping_abstract.items():
+            for dest_col in dest_cols:
+                if dest_col not in dest_to_sources_map:
+                    dest_to_sources_map[dest_col] = []
+                dest_to_sources_map[dest_col].append(source_full.split('.')[-1]) # Salva solo il nome della colonna sorgente
+
+        # 2. Analizza ogni tabella struttura per vedere se è coinvolta
         struttura_tables = sorted([t for t in all_tables if t.startswith(config["db_struttura_prefix"])])
         unpivot_tables_info = {}
-        for table_name in struttura_tables:
-            table_dest_cols = pd.read_sql(f'SELECT * FROM "{table_name}" LIMIT 0', engine).columns.tolist()
-            current_mapping = {k: v for k, v in global_mapping.items() if v in table_dest_cols}
-            if not current_mapping: continue
+        for struttura_table in struttura_tables:
+            if struttura_table in force_1to1_tables:
+                continue
+
+            table_dest_cols = pd.read_sql(f'SELECT * FROM "{struttura_table}" LIMIT 0', engine).columns.tolist()
             
-            dest_to_sources = {dest: [s for s, d in current_mapping.items() if d == dest] for dest in set(current_mapping.values())}
-            if any(len(sources) > 1 for sources in dest_to_sources.values()):
-                one_to_one_cols = [k for k,v in dest_to_sources.items() if len(v) == 1]
-                unpivot_tables_info[table_name] = {"triggers": {k:v for k,v in dest_to_sources.items() if len(v)>1}, "key_options": one_to_one_cols}
+            # Cerca le colonne in QUESTA tabella che sono target di mappature molti-a-uno o uno-a-uno
+            unpivot_triggers = {}
+            one_to_one_cols = []
+            is_unpivot_target = False
+
+            for dest_col in table_dest_cols:
+                sources = dest_to_sources_map.get(dest_col, [])
+                if len(sources) > 1:
+                    unpivot_triggers[dest_col] = sources
+                    is_unpivot_target = True
+                elif len(sources) == 1:
+                    one_to_one_cols.append(dest_col)
+            
+            if is_unpivot_target:
+                unpivot_tables_info[struttura_table] = {"triggers": unpivot_triggers, "key_options": one_to_one_cols}
 
         st.markdown("---")
         
         if not unpivot_tables_info:
-            st.success("✅ Nessuna trasformazione 'molti-a-uno' rilevata. Puoi procedere allo step successivo.")
-            return
+            st.success("✅ Nessuna trasformazione 'molti-a-uno' rilevata. Puoi procedere."); return
 
         st.warning(f"⚠️ Rilevata una trasformazione 'molti-a-uno' per {len(unpivot_tables_info)} tabella/e.")
         
-        # Carica/Inizializza la configurazione delle chiavi
+        # Carica/Inizializza la configurazione delle chiavi dallo stato
         unpivot_keys_path = os.path.join(config["mapping_dir"], "unpivot_keys_config.json")
         if 'unpivot_keys_config' not in st.session_state:
             st.session_state.unpivot_keys_config = json.load(open(unpivot_keys_path)) if os.path.exists(unpivot_keys_path) else {}
@@ -626,12 +859,12 @@ def step_5b_verifica_trasformazioni(config, engine):
         for table_name, info in unpivot_tables_info.items():
             with st.expander(f"**Configura le chiavi per: `{get_pretty_name(table_name)}`**"):
                 st.write("Causa della trasformazione:")
-                for dest_col, source_keys in info["triggers"].items():
-                     st.markdown(f"- La colonna **`{get_pretty_name(dest_col)}`** è mappata da {len(source_keys)} sorgenti.")
+                for dest_col, source_cols_list in info["triggers"].items():
+                    st.markdown(f"- La colonna **`{get_pretty_name(dest_col)}`** è mappata da {len(source_cols_list)} sorgenti: `{', '.join([get_pretty_name(s) for s in source_cols_list])}`.")
 
                 st.markdown("---")
                 st.write("**Azione richiesta:** Scegli quali colonne (tra quelle mappate 1-a-1) vuoi ripetere su ogni riga creata.")
-                st.caption("Se non selezioni nulla, verranno usate tutte le colonne mappate 1-a-1 (comportamento di default).")
+                st.caption("Default: verranno usate tutte le colonne mappate 1-a-1 come chiavi.")
 
                 key_options = info["key_options"]
                 if not key_options:
@@ -644,10 +877,8 @@ def step_5b_verifica_trasformazioni(config, engine):
 
                 selected_keys = st.multiselect(
                     "Colonne chiave da ripetere:",
-                    options=key_options,
-                    default=valid_defaults,
-                    key=f"unpivot_keys_{table_name}",
-                    format_func=get_pretty_name
+                    options=key_options, default=valid_defaults,
+                    key=f"unpivot_keys_{table_name}", format_func=get_pretty_name
                 )
                 st.session_state.unpivot_keys_config[table_name] = selected_keys
 
@@ -657,10 +888,9 @@ def step_5b_verifica_trasformazioni(config, engine):
             st.success("Configurazione salvata!")
 
     except Exception as e:
-        st.error(f"Errore: {e}")
+        st.error(f"Errore: {e}"); st.exception(e)
 
-# SOSTITUISCI IL TUO STEP 6 CON QUESTA VERSIONE FINALE
-# VERSIONE FINALE DI STEP 6 - Implementa la logica a tre livelli
+# SOSTITUISCI IL TUO STEP 6 CON QUESTA VERSIONE CON LOGICA IBRIDA
 def step_6_popola_dati(config, engine):
     mode_name = config['mode'].capitalize()
     st.header(f"Step 7: Popola Dati ({mode_name})")
@@ -668,79 +898,113 @@ def step_6_popola_dati(config, engine):
     if st.button("APPLICA MAPPATURA E POPOLA", key=f'popola_btn_{mode_name}'):
         with st.spinner("Popolamento in corso..."):
             try:
-                # 1. Caricamento Globale
+                # 1. Caricamento Globale delle configurazioni
                 mapping_path = os.path.join(config["mapping_dir"], "global_mapping.json")
-                if not os.path.exists(mapping_path): st.error(f"'global_mapping.json' non trovato."); return
-                with open(mapping_path, 'r', encoding='utf-8') as f: global_mapping = json.load(f)
-                
+                if not os.path.exists(mapping_path):
+                    st.error("'global_mapping.json' non trovato."); return
+                with open(mapping_path, 'r', encoding='utf-8') as f:
+                    global_mapping_abstract = json.load(f)
+
                 unpivot_keys_path = os.path.join(config["mapping_dir"], "unpivot_keys_config.json")
                 unpivot_keys_config = json.load(open(unpivot_keys_path)) if os.path.exists(unpivot_keys_path) else {}
-
+                
                 studio_mapping_path = os.path.join(config["mapping_dir"], "studio_mapping.json")
-                studio_target_col = ""
-                if os.path.exists(studio_mapping_path):
-                    with open(studio_mapping_path, 'r', encoding='utf-8') as f: studio_target_col = json.load(f).get("codice_studio_column", "")
+                studio_target_col = json.load(open(studio_mapping_path))['codice_studio_column'] if os.path.exists(studio_mapping_path) else ""
                 codice_studio_value = st.session_state.get('codice_studio_valore_sicuro', '').upper()
 
-                inspector = inspect(engine)
-                appoggio_tables = [t for t in inspector.get_table_names() if t.endswith(config["db_appoggio_suffix"])]
-                struttura_tables = [t for t in inspector.get_table_names() if t.startswith(config["db_struttura_prefix"])]
-                if not appoggio_tables: st.warning("Dati di appoggio non trovati."); return
-                df_appoggio = pd.read_sql_table(appoggio_tables[0], engine).astype(str)
+                force_1to1_tables_path = os.path.join(config["mapping_dir"], "force_1to1_tables.json")
+                force_1to1_tables = json.load(open(force_1to1_tables_path))['force_1to1_tables'] if os.path.exists(force_1to1_tables_path) else []
 
-                # 2. Ciclo di Esecuzione
+                inspector = inspect(engine)
+                all_appoggio_tables_in_db = [t for t in inspector.get_table_names() if t.endswith(config["db_appoggio_suffix"])]
+                appoggio_dfs = {tbl: pd.read_sql_table(tbl, engine).astype(str) for tbl in all_appoggio_tables_in_db}
+                
+                struttura_tables = [t for t in inspector.get_table_names() if t.startswith(config["db_struttura_prefix"])]
+                if not (appoggio_dfs and struttura_tables):
+                    st.warning("Nessun dato di appoggio o tabella di struttura trovati."); return
+
+                # Inverti la mappa per avere dest_col -> [lista di sorgenti complete]
+                dest_to_sources_map = {}
+                for source_full, dest_cols in global_mapping_abstract.items():
+                    for dest_col in dest_cols:
+                        if dest_col not in dest_to_sources_map:
+                            dest_to_sources_map[dest_col] = []
+                        dest_to_sources_map[dest_col].append(source_full)
+
+                # 2. Ciclo di Esecuzione per ogni tabella struttura
                 for struttura_table in struttura_tables:
                     st.write(f"--- Elaborazione per `{struttura_table}` ---")
                     
                     dest_cols_for_this_table = pd.read_sql(f'SELECT * FROM "{struttura_table}" LIMIT 0', engine).columns.tolist()
-                    current_mapping = {k: v for k, v in global_mapping.items() if v in dest_cols_for_this_table}
+                    
+                    # Determina se questa tabella necessita di una trasformazione unpivot
+                    is_unpivot = False
+                    if struttura_table not in force_1to1_tables:
+                        for dest_col in dest_cols_for_this_table:
+                            if len(dest_to_sources_map.get(dest_col, [])) > 1:
+                                is_unpivot = True
+                                break
+
                     df_popolato = pd.DataFrame()
 
-                    if not current_mapping:
-                        st.warning(f"Nessuna mappatura trovata per '{struttura_table}'.")
-                    else:
-                        dest_to_sources = {dest: [s.split('.')[1] for s, d in current_mapping.items() if d == dest] for dest in set(current_mapping.values())}
-                        is_unpivot = any(len(sources) > 1 for sources in dest_to_sources.values())
+                    # --- LOGICA IBRIDA ---
+                    if is_unpivot:
+                        st.info(f"Logica Rilevata: Trasformazione Wide-to-Long (Unpivot) per `{struttura_table}`")
                         
-                        if is_unpivot:
-                            st.info(f"Logica Rilevata: Trasformazione Wide-to-Long")
-                            all_one_to_one_map = {dest: sources[0] for dest, sources in dest_to_sources.items() if len(sources) == 1}
-                            unpivot_map = {dest: sources for dest, sources in dest_to_sources.items() if len(sources) > 1}
+                        table_specific_dest_map = {k: v for k, v in dest_to_sources_map.items() if k in dest_cols_for_this_table}
+                        
+                        one_to_one_map = {dest: sources[0] for dest, sources in table_specific_dest_map.items() if len(sources) == 1}
+                        unpivot_map = {dest: sources for dest, sources in table_specific_dest_map.items() if len(sources) > 1}
+
+                        all_source_tables = {s.split('.')[0] for sources_list in table_specific_dest_map.values() for s in sources_list}
+                        if not all_source_tables: continue
+                        
+                        if len(all_source_tables) > 1:
+                             st.warning(f"La trasformazione per `{struttura_table}` usa dati da più tabelle sorgente. Si assume una chiave comune implicita, il che potrebbe portare a risultati inattesi.")
+                        
+                        # In caso di unpivot, si assume una singola tabella di appoggio principale.
+                        # La logica di join per unpivot multi-tabella non è definita.
+                        source_table_name = list(all_source_tables)[0]
+                        df_appoggio_current = appoggio_dfs[source_table_name]
+                        
+                        clean_one_to_one = {dest: src.split('.')[-1] for dest, src in one_to_one_map.items()}
+                        clean_unpivot = {dest: [s.split('.')[-1] for s in src_list] for dest, src_list in unpivot_map.items()}
+
+                        user_defined_keys = unpivot_keys_config.get(struttura_table, [])
+                        key_cols_map = {k: v for k, v in clean_one_to_one.items() if k in user_defined_keys} if user_defined_keys else clean_one_to_one
+                        context_cols_map = {k: v for k, v in clean_one_to_one.items() if k not in user_defined_keys} if user_defined_keys else {}
                             
-                            # --- LOGICA IBRIDA FINALE ---
-                            user_defined_keys = unpivot_keys_config.get(struttura_table, [])
-                            
-                            if user_defined_keys:
-                                st.success(f"Trovata configurazione personalizzata: uso {len(user_defined_keys)} colonne chiave.")
-                                key_cols_map = {k: v for k, v in all_one_to_one_map.items() if k in user_defined_keys}
-                                context_cols_map = {k: v for k, v in all_one_to_one_map.items() if k not in user_defined_keys}
-                            else:
-                                st.warning("Nessuna chiave personalizzata definita. Uso tutte le mappature 1-a-1 come chiavi (comportamento di default).")
-                                key_cols_map = all_one_to_one_map
-                                context_cols_map = {}
-                            
-                            df_popolato = crea_righe_multiple(df_appoggio, key_cols_map, context_cols_map, unpivot_map)
-                            # --- FINE LOGICA IBRIDA ---
-                        else:
-                            st.info("Logica Rilevata: Mappatura Semplice (1-a-1)")
-                            rename_map = {v[0]: k for k, v in dest_to_sources.items() if v}
-                            df_popolato = df_appoggio.rename(columns=rename_map)
+                        df_popolato = crea_righe_multiple(df_appoggio_current, key_cols_map, context_cols_map, clean_unpivot)
+
+                    else: # Mappatura Semplice
+                        st.info(f"Logica Rilevata: Mappatura Semplice (1-a-1) per `{struttura_table}`")
+                        
+                        max_len_df = max(appoggio_dfs.values(), key=len)
+                        df_popolato = pd.DataFrame(index=max_len_df.index, columns=dest_cols_for_this_table)
+
+                        for dest_col in dest_cols_for_this_table:
+                            sources = dest_to_sources_map.get(dest_col, [])
+                            if len(sources) == 1:
+                                source_full_path = sources[0]
+                                source_table, source_col = source_full_path.split('.', 1)
+                                
+                                if source_table in appoggio_dfs and source_col in appoggio_dfs[source_table].columns:
+                                    df_popolato[dest_col] = appoggio_dfs[source_table][source_col]
                     
-                    # Logica Codice Studio
-                    if studio_target_col and codice_studio_value and studio_target_col in dest_cols_for_this_table:
-                        if df_popolato.empty and len(df_appoggio) > 0:
-                            df_popolato = pd.DataFrame(index=range(len(df_appoggio)))
+                    # --- APPLICAZIONE CODICE STUDIO E SALVATAGGIO ---
+                    if studio_target_col and codice_studio_value and studio_target_col in df_popolato.columns:
                         df_popolato[studio_target_col] = codice_studio_value
                     
-                    # 3. Salvataggio
                     if not df_popolato.empty:
                         df_popolato = df_popolato.reindex(columns=dest_cols_for_this_table).fillna('')
                         df_popolato.to_sql(struttura_table, engine, if_exists='replace', index=False)
                         st.success(f"Tabella `{struttura_table}` popolata con successo con {len(df_popolato)} righe.")
+                        st.dataframe(df_popolato.head())
                     else:
                         st.warning(f"Nessun dato generato per `{struttura_table}`.")
 
-            except Exception as e: st.error(f"Errore: {e}"); st.exception(e)
+            except Exception as e: 
+                st.error(f"Errore durante il popolamento: {e}"); st.exception(e)
 
 def step_7_modifica_massiva(config, engine):
     mode_name = config['mode'].capitalize()
@@ -798,8 +1062,8 @@ def step_7_modifica_massiva(config, engine):
 def step_8_export_globale(config, engine):
     mode_name = config['mode'].capitalize()
     mode = config['mode']
-    st.header(f'Step 9: Export Globale Finale ({mode_name})')
-    
+    st.header(f'Step 9: Export Globale Finale ({mode})') # Utilizza 'mode' per key e nome file
+
     export_state_key = f'exported_file_paths_{mode}'
     if export_state_key not in st.session_state: 
         st.session_state[export_state_key] = None
@@ -868,6 +1132,8 @@ def step_8_export_globale(config, engine):
                         st.stop()
 
                     generated_paths = []
+                    # Nessuna esclusione implicita per cognome/nome. Verranno rimosse se vuote.
+
                     for struttura_table in struttura_tables:
                         base_name = struttura_table.replace(config["db_struttura_prefix"], '')
                         st.write(f"Elaborazione di `{base_name}`...")
@@ -890,7 +1156,7 @@ def step_8_export_globale(config, engine):
                                 
                                 if cols_to_drop:
                                     df_final_for_export = df_to_export.drop(columns=cols_to_drop)
-                                    st.info(f"In '{base_name}', rimosse {len(cols_to_drop)} colonne vuote.")
+                                    st.info(f"In '{base_name}', rimosse {len(cols_to_drop)} colonne completamente vuote.")
                             else:
                                 st.warning(f"La tabella '{base_name}' è vuota, l'export per questo file sarà vuoto.")
                         
@@ -915,6 +1181,7 @@ def step_8_export_globale(config, engine):
                         export_file_path = os.path.join(config["export_dir"], export_file_name)
                         wb_export.save(export_file_path)
                         generated_paths.append(export_file_path)
+                        st.success(f"File '{export_file_name}' salvato in: `{export_file_path}`") # Messaggio di debug più chiaro
 
                     st.session_state[export_state_key] = generated_paths
                     st.rerun()
